@@ -48,7 +48,6 @@ uint8_t DOUT_Values[7];
 uint16_t AIN_Values[4];
 uint16_t AOUT_Values[2];
 
-
 #include "defines.h"
 #include "openplc.h"
 
@@ -268,7 +267,7 @@ void loop()
     clientAPILoop();
     updateInputBuffers();
 
-    if (enableModbus) {
+    if (enableModbus[0]) {
         syncModbusBuffers();
     }
     updateOutputBuffers();
