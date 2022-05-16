@@ -14,20 +14,22 @@
 //------------------------------------------------------------------
 
 #include <WiFi.h>
-//#include <WiFiUdp.h>
-//#include <mdns.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <WebAuthentication.h>
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
 
+#include "defines.h"
 #include "openplc.h"
 #include "GlobalVariables.h"
 #include "WebSvr.h"
 #include "Utils.h"
 #include "Configuration.h"
 
+#ifdef  OTA_ENABLED
+#include <Update.h>
+#endif
 
 //#define DEBUG_WEB
 
@@ -38,7 +40,10 @@ AsyncWebSocket ws("/ws");
 static uint8_t msgCode;
 static uint8_t msgBuff[MSG_BUFFER_SIZE];
 static uint8_t msgBuffIndex;
+static bool IsUploading = false;
 
+String uname;
+String pwd;
 
 
 TimerHandle_t tmrWSHealth;
@@ -58,6 +63,9 @@ void setWebSocketContent(uint8_t* data, size_t len) {
 }
 void sendWebSocketMessage(AsyncWebSocketClient* client) {
 	client->binary(msgBuff, msgBuffIndex);
+}
+void sendAllWebSocketMessage() {
+	ws.binaryAll(msgBuff, msgBuffIndex);
 }
 void executeWebSocketMessage(AsyncWebSocketClient* client, uint8_t* data, size_t len) {
 	msgCode = data[0];
@@ -118,15 +126,53 @@ void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client, AwsEventTyp
 		if (info->final && info->index == 0 && info->len == len) {
 			if (info->opcode != WS_TEXT) {
 				if (info->len > 0) {
+					if (IsUploading)
+						return;
 					executeWebSocketMessage(client, data, len);
 				}
 			}
 		}
 	}
 }
+void handleUploadFirmware(AsyncWebServerRequest* request, String filename, size_t index, uint8_t* data, size_t len, bool final) {
+	
+#ifndef DEBUG_WEB
+	if (!request->authenticate(uname.c_str(), pwd.c_str()))
+		return request->requestAuthentication();
+#endif
+	IsUploading = true;
+	if (!index) {
+		Serial.println("Updating...");
+		//content_len = request->contentLength();
+		//int cmd = (filename.indexOf("spiffs") > -1) ? U_PART : ;
 
-String uname;
-String pwd;
+		deviceState.IsPLCStarted = 0;
+		sendDeviceStatus();
+		if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
+			Update.printError(Serial);
+		}
+	}
+	if (!Update.hasError()) {
+		if (Update.write(data, len) != len) {
+			Update.printError(Serial);
+		}
+	}
+	if (final) {
+		AsyncWebServerResponse* response = request->beginResponse(302, "text/plain", "Please wait while the device reboots");
+		response->addHeader("Refresh", "20");
+		response->addHeader("Location", "/");
+		request->send(response);
+		if (!Update.end(true)) {
+			Update.printError(Serial);
+			IsUploading = false;
+		}
+		else {
+			Serial.println("Update complete");
+			Serial.flush();
+			ESP.restart();
+		}
+	}
+}
 
 void initWebServer() {
 	if (!SPIFFS.begin(true)) {
@@ -152,6 +198,7 @@ void initWebServer() {
 	webServer.on("/api/logout", HTTP_GET, [](AsyncWebServerRequest* request) {
 		request->send(401);
 	});
+
 	webServer.on("/api/config", HTTP_GET, [](AsyncWebServerRequest* request) {
 #ifndef DEBUG_WEB
 		if (!request->authenticate(uname.c_str(), pwd.c_str()))
@@ -199,6 +246,14 @@ void initWebServer() {
 #else
 		resultDoc["IsPLCSlave"] = 1;
 #endif
+
+
+#ifdef OTA_ENABLED
+		resultDoc["IsOTAEnabled"] = 1;
+#else
+		resultDoc["IsOTAEnabled"] = 0;
+#endif
+
 
 
 		serializeJson(resultDoc, resultJsonValue);
@@ -371,6 +426,7 @@ void initWebServer() {
 		request->send(200);
 		sendDeviceStatus();
 	});
+
 	webServer.on("/api/system/status", HTTP_GET, [](AsyncWebServerRequest* request) {
 #ifndef DEBUG_WEB
 		if (!request->authenticate(uname.c_str(), pwd.c_str()))
@@ -394,7 +450,10 @@ void initWebServer() {
 		if (!request->authenticate(uname.c_str(), pwd.c_str()))
 			return request->requestAuthentication();
 #endif
-		request->send(200);
+		AsyncWebServerResponse* response = request->beginResponse(302, "text/plain", "Please wait while the device reboots");
+		response->addHeader("Refresh", "30");
+		response->addHeader("Location", "/");
+		request->send(response);
 		ESP.restart();
 	});
 	webServer.on("/api/system/reset", HTTP_POST, [](AsyncWebServerRequest* request) {
@@ -403,7 +462,10 @@ void initWebServer() {
 			return request->requestAuthentication();
 #endif
 		resetConfig();
-		request->send(200);
+		AsyncWebServerResponse* response = request->beginResponse(302, "text/plain", "Please wait while the device reboots");
+		response->addHeader("Refresh", "30");
+		response->addHeader("Location", "/");
+		request->send(response);
 		ESP.restart();
 	});
 	webServer.on("/api/pinout", HTTP_GET, [](AsyncWebServerRequest* request) {
@@ -468,6 +530,22 @@ void initWebServer() {
 		request->send(200, "application/json", resultJsonValue);
 #endif
 	});
+
+#ifdef OTA_ENABLED
+
+	webServer.on("/api/update/firmware", HTTP_POST, [](AsyncWebServerRequest* request) {
+#ifndef DEBUG_WEB
+		if (!request->authenticate(uname.c_str(), pwd.c_str())) {
+			request->send(401);
+			return;
+		}
+#endif
+		}, [](AsyncWebServerRequest* request, const String& filename, size_t index, uint8_t* data, size_t len, bool final)
+		{
+			handleUploadFirmware(request, filename, index, data, len, final);
+		});
+#endif
+
 	ws.onEvent(onWsEvent);
 	webServer.addHandler(&ws);
 	webServer.begin();
@@ -481,12 +559,13 @@ void initWebServer() {
 	if (xTimerStart(tmrWSHealth, 10) != pdPASS) {
 		Serial.println("Timer start error");
 	}
-
 }
 
 void sendDeviceStatus() {
-	uint8_t buff[2] = { 255, deviceState.IsPLCStarted };
-	ws.binaryAll(buff, 2);
+	msgCode = 255;
+	setWebSocketHeader(msgCode);
+	setWebSocketContent((uint8_t*)&deviceState.IsPLCStarted, 1);
+	sendAllWebSocketMessage();
 }
 void resetWebServer() {
 	ws.closeAll();

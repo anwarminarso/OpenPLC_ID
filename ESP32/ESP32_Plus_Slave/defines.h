@@ -15,4 +15,4 @@
 #define MBTCP_WIFI
 #define BOARD_ESP32
 #define BOARD_ESP32_PLUS
-
+//#define OTA_ENABLED

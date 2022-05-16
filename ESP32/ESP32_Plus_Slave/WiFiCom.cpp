@@ -14,6 +14,7 @@
 //------------------------------------------------------------------
 
 #include <WiFi.h>
+#include <ESPmDNS.h>
 #include "WifiCom.h"
 #include "GlobalVariables.h"
 #include "Configuration.h"
@@ -49,11 +50,11 @@ void initWiFi() {
 	WiFi.persistent(false);
 	WiFi.disconnect(true, true);
 	delay(100);
-
+	String hostName;
 	WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
 	delay(500);
 	if (config.WiFi_STA_Enabled) {
-		String hostName = String(config.WiFi_STA_HostName);
+		hostName = String(config.WiFi_STA_HostName);
 		hostName.trim();
 		char* pHostName = &hostName[0];
 		if (!WiFi.setHostname(pHostName))
@@ -92,7 +93,7 @@ void initWiFi() {
 		WiFi.disconnect(true, true);
 		WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
 		delay(500);
-		String hostName = String(config.WiFi_AP_HostName);
+		hostName = String(config.WiFi_AP_HostName);
 		hostName.trim();
 		WiFi.softAPsetHostname(hostName.c_str());
 		WiFi.mode(WIFI_AP);
@@ -102,9 +103,17 @@ void initWiFi() {
 	}
 	else {
 		IsWiFiSTAMode = true;
+		deviceState.ReconnectCount = 0;
+		deviceState.ResetCount = 0;
 		Serial.println(WiFi.localIP());
 	}
-
+	if (MDNS.begin(hostName.c_str())) {
+		MDNS.addService("http", "tcp", 80);
+	}
+	else
+	{
+		Serial.println("Error setting up MDNS responder!");
+	}
 	if (IsWiFiSTAMode) {
 		tmrWiFiHealth = xTimerCreate(
 			"tmrWiFiHealth", /* name */

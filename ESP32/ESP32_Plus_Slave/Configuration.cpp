@@ -55,19 +55,19 @@ void loadConfig() {
 
 void resetConfig() {
 
-	String macAddress = getWifiMacAddress();
+	String chipId = getChipID();
 
 	String staHostName = String("ESP32-STA-");
 	String apHostName = String("ESP32-AP-");
 	String rootTopic = String("/esp32/plc/");
-	staHostName += macAddress;
-	apHostName += macAddress;
-	rootTopic += getChipID();
+	staHostName += chipId;
+	apHostName += chipId;
+	rootTopic += chipId;
 
 	strncpy((char*)&config.WiFi_STA_HostName, staHostName.c_str(), 32);
-	strncpy((char*)&config.WiFi_STA_SSID, "V1RU$", 32);
-	strncpy((char*)&config.WiFi_STA_Password, "@mikochu123", 64);
-	config.WiFi_STA_Enabled = 1;
+	strncpy((char*)&config.WiFi_STA_SSID, "yourSSID", 32);
+	strncpy((char*)&config.WiFi_STA_Password, "yourPassword", 64);
+	config.WiFi_STA_Enabled = 0;
 
 	strncpy((char*)&config.WiFi_AP_HostName, apHostName.c_str(), 32);
 	strncpy((char*)&config.WiFi_AP_SSID, apHostName.c_str(), 32);
