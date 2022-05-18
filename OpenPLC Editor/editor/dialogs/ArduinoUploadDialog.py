@@ -49,7 +49,12 @@ class ArduinoUploadDialog(wx.Dialog):
         self.board_type_lbl.Wrap( -1 )
         fgSizer1.Add( self.board_type_lbl, 0, wx.ALIGN_CENTER_VERTICAL|wx.LEFT, 10 )
 
-        board_type_comboChoices = [ u"P1AM-100", u"Uno", u"Nano", u"Leonardo", u"Micro",  u"Mega", u"ESP8266 NodeMCU", u"ESP8266 D1-mini", u"ESP32", u"ESP32-S2", u"ESP32-C3", u"ESP32-IndieOprek", u"Nano Every", u"Nano 33 IoT", u"Nano 33 BLE", u"Nano RP2040 Connect", u"Mkr Zero", u"Mkr WiFi", u"Due (native USB port)", u"Due (programming port)", u"Zero (native USB port)", u"Zero (programming port)", u"Portenta Machine Control"]
+        board_type_comboChoices = [ u"P1AM-100", u"Uno", u"Nano", u"Leonardo", u"Micro", u"Mega", 
+                                   u"ESP8266 NodeMCU", u"ESP8266 D1-mini", 
+                                   u"ESP32", u"ESP32-S2", u"ESP32-C3", u"ESP32-Plus", u"ESP32 (Nusantara)",
+                                   u"STM32-F103C8 (Nusantara)", "STM32-F411CE (Nusantara)",
+                                   u"Nano Every", u"Nano 33 IoT", u"Nano 33 BLE", u"Nano RP2040 Connect", 
+                                   u"Mkr Zero", u"Mkr WiFi", u"Due (native USB port)", u"Due (programming port)", u"Zero (native USB port)", u"Zero (programming port)", u"Portenta Machine Control"]
         self.board_type_combo = wx.ComboBox( self, wx.ID_ANY, u"Uno", wx.DefaultPosition, wx.Size( 300,-1 ), board_type_comboChoices, wx.CB_READONLY )
         self.board_type_combo.SetSelection( 0 )
         fgSizer1.Add( self.board_type_combo, 0, wx.ALIGN_CENTER_VERTICAL|wx.ALL, 5 )
@@ -284,8 +289,14 @@ class ArduinoUploadDialog(wx.Dialog):
             board = 'esp32:esp32:esp32s2'
         elif self.board_type_combo.GetValue() == u"ESP32-C3":
             board = 'esp32:esp32:esp32c3'
-        elif self.board_type_combo.GetValue() == u"ESP32-IndieOprek":
-            board = 'esp32:esp32:esp32-indieoprek'
+        elif self.board_type_combo.GetValue() == u"ESP32-Plus":
+            board = 'esp32:esp32:esp32-plus'
+        elif self.board_type_combo.GetValue() == u"ESP32 (Nusantara)":
+            board = 'esp32:esp32:esp32-nusantara'
+        elif self.board_type_combo.GetValue() == u"STM32-F103C8 (Nusantara)":
+            board = 'STM32:stm32:GenF1:pnum=BLUEPILL_F103C8'
+        elif self.board_type_combo.GetValue() == u"STM32-F411CE (Nusantara)":
+            board = 'STM32:stm32:GenF4:pnum=BLACKPILL_F411CE'
         elif self.board_type_combo.GetValue() == u"Nano 33 IoT":
             board = 'arduino:samd:nano_33_iot'
         elif self.board_type_combo.GetValue() == u"Nano 33 BLE":
@@ -350,11 +361,16 @@ class ArduinoUploadDialog(wx.Dialog):
         
         if (self.board_type_combo.GetValue() == u"ESP8266 NodeMCU" or self.board_type_combo.GetValue() == u"ESP8266 D1-mini"):
             define_file += '#define BOARD_ESP8266\n'
-        elif (self.board_type_combo.GetValue() == u"ESP32" or self.board_type_combo.GetValue() == u"ESP32-S2" or self.board_type_combo.GetValue() == u"ESP32-C3" or self.board_type_combo.GetValue() == u"ESP32-IndieOprek"):
+        elif (self.board_type_combo.GetValue() == u"ESP32" or self.board_type_combo.GetValue() == u"ESP32-S2" or self.board_type_combo.GetValue() == u"ESP32-C3" or self.board_type_combo.GetValue() == u"ESP32-Plus" or self.board_type_combo.GetValue() == u"ESP32 (Nusantara)"):
             define_file += '#define BOARD_ESP32\n'
+        elif (self.board_type_combo.GetValue() == u"STM32-F103C8 (Nusantara)" or self.board_type_combo.GetValue() == u"STM32-F411CE (Nusantara)"):
+            define_file += '#define BOARD_STM32\n'
         elif (self.board_type_combo.GetValue() == u"Nano 33 IoT" or self.board_type_combo.GetValue() == u"Mkr WiFi" or self.board_type_combo.GetValue() == u"Nano RP2040 Connect"):
             define_file += '#define BOARD_WIFININA\n'
-        
+        if (self.board_type_combo.GetValue() == u"ESP32-Plus"):
+            define_file += '#define BOARD_ESP32_PLUS\n'
+            define_file += '#define OTA_ENABLED\n'
+
         define_file += '\n\n//Arduino Libraries\n'
 
         #Generate Arduino Libraries defines
@@ -366,10 +382,16 @@ class ArduinoUploadDialog(wx.Dialog):
             define_file += '#define USE_CLOUD_BLOCKS\n'
 
         #Write file to disk
-        if (os.name == 'nt'):
+        if (self.board_type_combo.GetValue() == u'ESP32-Plus'):
+            if (os.name == 'nt'):
+                base_path = 'editor\\arduino\\examples\\esp32plus\\'
+            else:
+                base_path = 'editor/arduino/examples/esp32plus/'
+        elif (os.name == 'nt'):
             base_path = 'editor\\arduino\\examples\\Baremetal\\'
         else:
             base_path = 'editor/arduino/examples/Baremetal/'
+
         f = open(base_path+'defines.h', 'w')
         f.write(define_file)
         f.flush()
@@ -395,6 +417,7 @@ class ArduinoUploadDialog(wx.Dialog):
 
         #write settings to disk
         jsonStr = json.dumps(settings)
+
         if (os.name == 'nt'):
             base_path = 'editor\\arduino\\examples\\Baremetal\\'
         else:

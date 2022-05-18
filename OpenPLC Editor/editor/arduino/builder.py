@@ -58,6 +58,12 @@ def build(st_file, platform, port, txtCtrl, update_subsystem):
         compiler_logs += env_setup.read()
         wx.CallAfter(txtCtrl.SetValue, compiler_logs)
         wx.CallAfter(txtCtrl.SetInsertionPoint, -1)
+        #Remove STM32 Board
+        env_setup = os.popen(cli_command + ' config remove board_manager.additional_urls https://raw.githubusercontent.com/stm32duino/BoardManagerFiles/master/STM32/package_stm_index.json 2>&1')
+        compiler_logs += env_setup.read()
+        wx.CallAfter(txtCtrl.SetValue, compiler_logs)
+        wx.CallAfter(txtCtrl.SetInsertionPoint, -1)
+
         #Setup boards - add 3rd party boards
         env_setup = os.popen(cli_command + ' config add board_manager.additional_urls https://arduino.esp8266.com/stable/package_esp8266com_index.json 2>&1')
         compiler_logs += env_setup.read()
@@ -67,7 +73,13 @@ def build(st_file, platform, port, txtCtrl, update_subsystem):
         compiler_logs += env_setup.read()
         wx.CallAfter(txtCtrl.SetValue, compiler_logs)
         wx.CallAfter(txtCtrl.SetInsertionPoint, -1)
-        
+        #Add STM32 Board
+        env_setup = os.popen(cli_command + ' config add board_manager.additional_urls https://raw.githubusercontent.com/stm32duino/BoardManagerFiles/master/STM32/package_stm_index.json 2>&1')
+        compiler_logs += env_setup.read()
+        wx.CallAfter(txtCtrl.SetValue, compiler_logs)
+        wx.CallAfter(txtCtrl.SetInsertionPoint, -1)
+
+
         #Update
         env_setup = os.popen(cli_command + ' core update-index 2>&1')
         compiler_logs += env_setup.read()
@@ -87,6 +99,12 @@ def build(st_file, platform, port, txtCtrl, update_subsystem):
         compiler_logs += env_setup.read()
         wx.CallAfter(txtCtrl.SetValue, compiler_logs)
         wx.CallAfter(txtCtrl.SetInsertionPoint, -1)
+        #install STM32 Boards
+        env_setup = os.popen(cli_command + ' core install STM32:stm32 2>&1')
+        compiler_logs += env_setup.read()
+        wx.CallAfter(txtCtrl.SetValue, compiler_logs)
+        wx.CallAfter(txtCtrl.SetInsertionPoint, -1)
+
         env_setup = os.popen(cli_command + ' core install arduino:avr 2>&1')
         compiler_logs += env_setup.read()
         wx.CallAfter(txtCtrl.SetValue, compiler_logs)
@@ -131,10 +149,22 @@ def build(st_file, platform, port, txtCtrl, update_subsystem):
         compiler_logs += env_setup.read()
         wx.CallAfter(txtCtrl.SetValue, compiler_logs)
         wx.CallAfter(txtCtrl.SetInsertionPoint, -1)
+        #Install ADS115X library
         env_setup = os.popen(cli_command + ' lib install "Adafruit ADS1X15" 2>&1')
         compiler_logs += env_setup.read()
         wx.CallAfter(txtCtrl.SetValue, compiler_logs)
         wx.CallAfter(txtCtrl.SetInsertionPoint, -1)
+        #Install MQTT library
+        env_setup = os.popen(cli_command + ' lib install "PubSubClient" 2>&1')
+        compiler_logs += env_setup.read()
+        wx.CallAfter(txtCtrl.SetValue, compiler_logs)
+        wx.CallAfter(txtCtrl.SetInsertionPoint, -1)
+        #Install ArduinoJson library
+        env_setup = os.popen(cli_command + ' lib install "ArduinoJson" 2>&1')
+        compiler_logs += env_setup.read()
+        wx.CallAfter(txtCtrl.SetValue, compiler_logs)
+        wx.CallAfter(txtCtrl.SetInsertionPoint, -1)
+
         env_setup = os.popen(cli_command + ' upgrade 2>&1')
         compiler_logs += env_setup.read()
         wx.CallAfter(txtCtrl.SetValue, compiler_logs)
@@ -347,20 +377,32 @@ void updateTime()
         source_file = 'esp8266.cpp'
     elif platform == 'esp32:esp32:esp32' or platform == 'esp32:esp32:esp32s2' or platform == 'esp32:esp32:esp32c3':
         source_file = 'esp32.cpp'
-    elif platform == 'esp32:esp32:esp32-indieoprek':
-        source_file = 'esp32_indieoprek.cpp'
+    elif platform == 'esp32:esp32:esp32-plus':
+        source_file = 'esp32_plus.cpp'
         output_platform = 'esp32:esp32:esp32'
+    elif platform == 'esp32:esp32:esp32-nasional':
+        source_file = 'esp32_nasional.cpp'
+        output_platform = 'esp32:esp32:esp32'
+    elif platform == 'STM32:stm32:GenF1:pnum=BLUEPILL_F103C8':
+        source_file = 'stm32f103_nasional.cpp'
+    elif platform == 'STM32:stm32:GenF4:pnum=BLACKPILL_F411CE':
+        source_file = 'stm32f411_nasional.cpp'
 
     shutil.copyfile(source_path + source_file, destination)
 
     #Generate Pin Array Sizes defines
     #We need to write the hal specific pin size defines on the global defines.h so that it is
     #available everywhere
-
-    if (os.name == 'nt'):
+    if platform == 'esp32:esp32:esp32-plus':
+        if (os.name == 'nt'):
+            define_path = 'editor\\arduino\\examples\\esp32plus\\'
+        else:
+            define_path = 'editor/arduino/examples/esp32plus/'
+    elif (os.name == 'nt'):
         define_path = 'editor\\arduino\\examples\\Baremetal\\'
     else:
         define_path = 'editor/arduino/examples/Baremetal/'
+
     file = open(define_path+'defines.h', 'r')
     define_file = file.read() + '\n\n//Pin Array Sizes\n'
     hal = open(destination, 'r')
@@ -376,7 +418,12 @@ void updateTime()
             define_file += line
 
     #Write defines.h file back to disk
-    if (os.name == 'nt'):
+    if platform == 'esp32:esp32:esp32-plus':
+        if (os.name == 'nt'):
+            define_path = 'editor\\arduino\\examples\\esp32plus\\'
+        else:
+            define_path = 'editor/arduino/examples/esp32plus/'
+    elif (os.name == 'nt'):
         define_path = 'editor\\arduino\\examples\\Baremetal\\'
     else:
         define_path = 'editor/arduino/examples/Baremetal/'
@@ -399,10 +446,15 @@ void updateTime()
     #wx.CallAfter(txtCtrl.SetValue, compiler_logs)
     #wx.CallAfter(txtCtrl.SetInsertionPoint, -1)
 
-    if (os.name == 'nt'):
+    if (platform == 'esp32:esp32:esp32-plus' and os.name == 'nt'):
+        compilation = subprocess.Popen(['editor\\arduino\\bin\\arduino-cli-w32', 'compile', '-v', '--libraries=editor\\arduino', '--libraries=editor\\arduino\\src\\lib\\CustomLib', '--build-property', 'upload.maximum_size=1769472', '--build-property', 'compiler.c.extra_flags="-Ieditor\\arduino\\src\\lib"', '--build-property', 'compiler.cpp.extra_flags="-Ieditor\\arduino\\src\\lib"', '--export-binaries', '-b', output_platform, 'editor\\arduino\\examples\\esp32plus\\esp32plus.ino'], creationflags = 0x08000000, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    elif (platform == 'esp32:esp32:esp32-plus'):
+        compilation = subprocess.Popen(['editor/arduino/bin/arduino-cli-l64', 'compile', '-v', '--libraries=editor/arduino', '--libraries=editor/arduino/src/lib/CustomLib', '--build-property', 'upload.maximum_size=1769472', '--build-property', 'compiler.c.extra_flags="-Ieditor/arduino/src/lib"', '--build-property', 'compiler.cpp.extra_flags="-Ieditor/arduino/src/lib"', '--export-binaries', '-b', output_platform, 'editor/arduino/examples/esp32plus/esp32plus.ino'], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    elif (os.name == 'nt'):
         compilation = subprocess.Popen(['editor\\arduino\\bin\\arduino-cli-w32', 'compile', '-v', '--libraries=editor\\arduino', '--build-property', 'compiler.c.extra_flags="-Ieditor\\arduino\\src\\lib"', '--build-property', 'compiler.cpp.extra_flags="-Ieditor\\arduino\\src\\lib"', '--export-binaries', '-b', output_platform, 'editor\\arduino\\examples\\Baremetal\\Baremetal.ino'], creationflags = 0x08000000, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
     else:
         compilation = subprocess.Popen(['editor/arduino/bin/arduino-cli-l64', 'compile', '-v', '--libraries=editor/arduino', '--build-property', 'compiler.c.extra_flags="-Ieditor/arduino/src/lib"', '--build-property', 'compiler.cpp.extra_flags="-Ieditor/arduino/src/lib"', '--export-binaries', '-b', output_platform, 'editor/arduino/examples/Baremetal/Baremetal.ino'], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    
     stdout, stderr = compilation.communicate()
     compiler_logs += stdout
     compiler_logs += stderr
@@ -415,10 +467,15 @@ void updateTime()
         compiler_logs += '\nUploading program to Arduino board at ' + port + '...\n'
         wx.CallAfter(txtCtrl.SetValue, compiler_logs)
         wx.CallAfter(txtCtrl.SetInsertionPoint, -1)
-        if (os.name == 'nt'):
+        if (platform == 'esp32:esp32:esp32-plus' and os.name == 'nt'):
+            uploading = os.popen('editor\\arduino\\bin\\arduino-cli-w32 upload --port ' + port + ' --fqbn ' + output_platform + ' editor\\arduino\\examples\\esp32plus/ 2>&1')
+        elif (platform == 'esp32:esp32:esp32-plus'):
+            uploading = os.popen('editor/arduino/bin/arduino-cli-l64 upload --port ' + port + ' --fqbn ' + output_platform + ' editor/arduino/examples/esp32plus/ 2>&1')
+        elif (os.name == 'nt'):
             uploading = os.popen('editor\\arduino\\bin\\arduino-cli-w32 upload --port ' + port + ' --fqbn ' + output_platform + ' editor\\arduino\\examples\\Baremetal/ 2>&1')
         else:
-            uploading = os.popen('editor/arduino/bin/arduino-cli-l64 upload --port ' + port + ' --fqbn ' + output_platform + ' editor/arduino/examples/Baremetal/ 2>&1')
+            uploading = os.popen('editor/arduino/bin/arduino-cli-w32 upload --port ' + port + ' --fqbn ' + output_platform + ' editor/arduino/examples/Baremetal/ 2>&1')
+    
         compiler_logs += uploading.read()
         compiler_logs += '\nDone!\n'
         wx.CallAfter(txtCtrl.SetValue, compiler_logs)
