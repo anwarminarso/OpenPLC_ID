@@ -1,5 +1,6 @@
 //------------------------------------------------------------------
-// Copyright(c) 2022 Anwar Minarso(https://github.com/anwarminarso/)
+// Copyright(c) 2022 Anwar Minarso (anwar.minarso@gmail.com)
+// https://github.com/anwarminarso/
 // This file is part of the ESP32+ PLC.
 //
 // This library is free software; you can redistribute it and/or
@@ -10,7 +11,7 @@
 // This library is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the GNU
-// Lesser General Public License for more details.
+// Lesser General Public License for more details
 //------------------------------------------------------------------
 
 #include <WiFi.h>
@@ -41,57 +42,110 @@ ulong currentMillis;
 StaticJsonDocument<1024> pubDoc;
 StaticJsonDocument<512> subDoc;
 
+void publishResult(char *msg) {
+	client.publish(resultTopic.c_str(), msg);
+}
 void clientAPI_CB(char* topic, byte* message, unsigned int length) {
 	String msgValue;
 
 	for (int i = 0; i < length; i++) {
 		msgValue += (char)message[i];
 	}
-	if (String(topic) == subscribeTopic) {
+	if (String(topic).equals(subscribeTopic)) {
 		DeserializationError error = deserializeJson(subDoc, msgValue);
 		if (error) {
-			Serial.println("Error parsing json");
+			publishResult("Data format error..");
 			return;
 		}
 		try
 		{
-			/*uint8_t cmd = doc["cmd"];
+			uint8_t cmd = 0;
+			if (subDoc["cmd"].is<uint8_t>())
+				cmd = subDoc["cmd"].as<uint8_t>();
 			switch (cmd)
 			{
-				case MSG_SET_RELAY: 
+				case 5: //write single coil
 					{
-						uint8_t relay = staticDoc["args"];
-						setGPIO(relay);
-						client.publish(resultTopic.c_str(), "Success");
+						uint8_t reg = 0;
+						uint8_t val = 0;
+						if (!subDoc["reg"].is<uint8_t>() || !subDoc["val"].is<uint8_t>()) {
+							publishResult("Error parsing data..");
+							return;
+						}
+						reg = subDoc["reg"].as<uint8_t>();
+						val = subDoc["val"].as<uint8_t>();
+						if (val > 1)
+							val = 1;
+						if (reg >= NUM_DISCRETE_OUTPUT) {
+							publishResult("Error parsing data..");
+							return;
+						}
+						*bool_output[reg / 8][reg % 8] = val;
+						DOUT_Values[reg] = val;
+						publishResult("OK");
 					}
 					break;
-				case MSG_RESET_CONFIG:
+				case 6: //Write Single Register
 					{
-						resetConfig();
-						client.publish(resultTopic.c_str(), "Success");
-						resetServer();
+						uint8_t reg = 0;
+						uint16_t val = 0;
+						if (!subDoc["reg"].is<uint8_t>() || !subDoc["reg"].is<uint16_t>()) {
+							publishResult("Error parsing data..");
+							return;
+						}
+						reg = subDoc["reg"].as<uint8_t>();
+						val = subDoc["val"].as<uint16_t>();
+						if (val > 1)
+							val = 1;
+						if (reg >= NUM_ANALOG_OUTPUT) {
+							publishResult("Error parsing data..");
+							return;
+						}
+						*int_output[reg] = val;
+						AOUT_Values[reg] = val;
+						publishResult("OK");
 					}
 					break;
-				case MSG_RESET_ENERGY:
+				case 16: //Write Multiple Register
 					{
-						resetEnergy();
-						client.publish(resultTopic.c_str(), "Success");
-					}
-					break;
-				case MSG_RESET:
-					{
-						resetServer();
+						JsonArray regs;
+						JsonArray vals;
+						if (!subDoc["regs"].is<JsonArray>() || !subDoc["vals"].is<JsonArray>()) {
+							publishResult("Error parsing data..");
+							return;
+						}
+						regs = subDoc["regs"].as<JsonArray>();
+						vals = subDoc["vals"].as<JsonArray>();
+						if (regs.size() != vals.size()) {
+							publishResult("Error parsing data..");
+							return;
+						}
+						size_t len = regs.size();
+						for (uint8_t i = 0; i < len; i++)
+						{
+							if (!regs[i].is<uint8_t>() || !vals[i].is<uint16_t>() || regs[i] >= NUM_ANALOG_OUTPUT) {
+								publishResult("Error parsing data..");
+								return;
+							}
+						}
+						for (uint8_t i = 0; i < len; i++)
+						{
+							uint8_t reg = regs[i].as<uint8_t>();
+							uint16_t val = vals[i].as<uint16_t>();
+							*int_output[reg] = val;
+							AOUT_Values[reg] = val;
+						}
+						publishResult("OK");
 					}
 					break;
 				default:
-					client.publish(resultTopic.c_str(), "Command unavailable");
+					publishResult("Command not supported");
 					break;
-			}*/
+			}
 		}
 		catch (const std::exception&)
 		{
-			client.publish(resultTopic.c_str(), "Error parsing json");
-			Serial.println("Error parsing json");
+			publishResult("Error parsing data..");
 		}
 	}
 }
@@ -129,7 +183,6 @@ void initClientAPI() {
 	subscribeTopic = config.MQTT_Root_Topic;
 	subscribeTopic += "/command";
 	resultTopic = config.MQTT_Root_Topic;
-	resultTopic += macAddress;
 	resultTopic += "/result";
 	mqttServerAddr = String(config.MQTT_Server_Address);
 	mqttServerAddr.trim();

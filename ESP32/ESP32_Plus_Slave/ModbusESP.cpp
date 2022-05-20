@@ -6,9 +6,9 @@
 	Modbus IP through Ethernet and WiFi
 	Copyright (C) 2021 OpenPLC
 
-    Add Extension for support ESP32 Plus
-    Reconfigure Port/IP/Serial Interface/Bluetooth support
-    Copyright (C) 2022 Anwar Minarso
+	Add Extension for support ESP32 Plus
+	Reconfigure Port/IP/Serial Interface/Bluetooth support
+	Copyright (C) 2022 Anwar Minarso
 */
 #include "ModbusESP.h"
 
@@ -95,14 +95,13 @@ void ModbusESP::config(uint16_t serverPort) {
 bool ModbusESP::receive(byte* frame) {
 	//first byte of frame = address
 	byte address = frame[0];
-	//Last two bytes = crc
-	u_int crc = ((frame[_len - 2] << 8) | frame[_len - 1]);
 
 	//Slave Check
 	if (address != 0xFF && address != this->getSlaveId()) {
 		return false;
 	}
-
+	//Last two bytes = crc
+	u_int crc = ((frame[_len - 2] << 8) | frame[_len - 1]);
 	//CRC Check
 	if (crc != this->calcCrc(_frame[0], _frame + 1, _len - 3)) {
 		return false;
@@ -143,56 +142,58 @@ bool ModbusESP::sendPDU(byte* pduframe) {
 		delay(1);
 	}
 
-delayMicroseconds(_t35);
+	delayMicroseconds(_t35);
 
-//Send slaveId
-(*_port).write(_slaveId);
+	//Send slaveId
+	(*_port).write(_slaveId);
 
-//Send PDU
-byte i;
-for (i = 0; i < _len; i++) {
-	(*_port).write(pduframe[i]);
-}
+	//Send PDU
+	byte i;
+	for (i = 0; i < _len; i++) {
+		(*_port).write(pduframe[i]);
+	}
 
-//Send CRC
-word crc = calcCrc(_slaveId, _frame, _len);
-(*_port).write(crc >> 8);
-(*_port).write(crc & 0xFF);
+	//Send CRC
+	word crc = calcCrc(_slaveId, _frame, _len);
+	(*_port).write(crc >> 8);
+	(*_port).write(crc & 0xFF);
 
-(*_port).flush();
-delayMicroseconds(_t35);
+	(*_port).flush();
+	delayMicroseconds(_t35);
 
-if (this->_txPin >= 0) {
-	digitalWrite(this->_txPin, LOW);
-}
+	if (this->_txPin >= 0) {
+		digitalWrite(this->_txPin, LOW);
+	}
 
 #ifdef DEBUG_MODE
-(*DebugPort).println("SENT Serial RESPONSE");
-(*DebugPort).print(_slaveId);
-(*DebugPort).print(':');
-for (int i = 0; i < _len; i++) {
-	(*DebugPort).print(_frame[i]);
+	(*DebugPort).println("SENT Serial RESPONSE");
+	(*DebugPort).print(_slaveId);
 	(*DebugPort).print(':');
-}
-(*DebugPort).print(crc >> 8);
-(*DebugPort).print(':');
-(*DebugPort).print(crc & 0xFF);
-(*DebugPort).print(':');
-(*DebugPort).println();
-(*DebugPort).println(F("-----------------"));
+	for (int i = 0; i < _len; i++) {
+		(*DebugPort).print(_frame[i]);
+		(*DebugPort).print(':');
+	}
+	(*DebugPort).print(crc >> 8);
+	(*DebugPort).print(':');
+	(*DebugPort).print(crc & 0xFF);
+	(*DebugPort).print(':');
+	(*DebugPort).println();
+	(*DebugPort).println(F("-----------------"));
 #endif
-return true;
+	return true;
 }
 
 bool ModbusESP::taskTCP() {
 
 	bool result = false;
-	if (!_server.hasClient())
-		return result;
-	for (int i = 0; i < MAX_SRV_CLIENTS; i++) {
-		if (!_serverClients[i]) { //equivalent to !serverClients[i].connected()
-			_serverClients[i] = _server.available();
-			break;
+	/*if (!_server.hasClient())
+		return result;*/
+	if (_server.hasClient()) {
+		for (int i = 0; i < MAX_SRV_CLIENTS; i++) {
+			if (!_serverClients[i]) { //equivalent to !serverClients[i].connected()
+				_serverClients[i] = _server.available();
+				break;
+			}
 		}
 	}
 	//search all clients for data
@@ -203,14 +204,14 @@ bool ModbusESP::taskTCP() {
 			while (_serverClients[i].available()) {
 				_MBAP[j] = _serverClients[i].read();
 				j++;
-				if (j == 7) 
+				if (j == 7)
 					break;  //MBAP length has 7 bytes size
 			}
 
 			_len = _MBAP[4] << 8 | _MBAP[5];
 			_len--;  // Do not count with last byte from MBAP
 
-			if (_MBAP[2] != 0 || _MBAP[3] != 0) 
+			if (_MBAP[2] != 0 || _MBAP[3] != 0)
 				return result;   //Not a MODBUSIP packet
 			if (_len > MODBUSIP_MAXFRAME)
 				return result;      //Length is over MODBUSIP_MAXFRAME
@@ -248,31 +249,35 @@ bool ModbusESP::taskTCP() {
 	return result;
 }
 bool ModbusESP::taskRTU() {
-	if ((*_port).available() > 255){
+	if ((*_port).available() > 255) {
 		(*_port).flush();
 		return false;
 	}
+	if ((*_port).available() == 0)
+		return false;
+
 	_len = 0;
 	while ((*_port).available() > _len) {
 		_len = (*_port).available();
 		delayMicroseconds(_t15);
 	}
-
 	if (_len == 0)
 		return false;
 
 	byte i;
 	_frame = (byte*)malloc(_len);
-	for (i = 0; i < _len; i++)
-		_frame[i] = (*_port).read();
+	(*_port).readBytes(_frame, _len);
 
-	if (this->receive(_frame)) {
-		if (_reply == MB_REPLY_NORMAL)
-			this->sendPDU(_frame);
-		else
-			if (_reply == MB_REPLY_ECHO)
-				this->send(_frame);
+	if (_len > 3) {
+		if (this->receive(_frame)) {
+			if (_reply == MB_REPLY_NORMAL)
+				this->sendPDU(_frame);
+			else
+				if (_reply == MB_REPLY_ECHO)
+					this->send(_frame);
+		}
 	}
+
 	free(_frame);
 	_len = 0;
 	return true;
