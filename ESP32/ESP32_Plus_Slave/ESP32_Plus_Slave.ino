@@ -237,7 +237,6 @@ void syncModbusBuffers()
     if (enableModbus[2])
         modbus.taskRTU();
 
-    //Write changes back to OpenPLC Buffers
     for (int i = 0; i < MAX_DIGITAL_OUTPUT; i++)
     {
         if (bool_output[i / 8][i % 8] != NULL)

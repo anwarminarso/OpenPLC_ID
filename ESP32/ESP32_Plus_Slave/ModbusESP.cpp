@@ -69,6 +69,7 @@ bool ModbusESP::config(HardwareSerial* port, long baud, int txPin) {
 bool ModbusESP::config(BluetoothSerial* port, String name) {
 	this->_port = port;
 	(*port).begin(name);
+	_t15 = 750;
 	//if (baud > 19200)
 	//	_t15 = 750;
 	//else
@@ -81,7 +82,8 @@ bool ModbusESP::config(BluetoothSerial* port, String name) {
 	//transmitted without truncation. A value of 2 character times is chosen which
 	//should suffice without holding the bus line high for too long.*/
 
-	//_t35 = _t15 * 3.5;
+	_t35 = _t15 * 3.5;
+
 	return true;
 }
 void ModbusESP::config(uint16_t serverPort) {
@@ -182,14 +184,15 @@ for (int i = 0; i < _len; i++) {
 return true;
 }
 
-void ModbusESP::taskTCP() {
+bool ModbusESP::taskTCP() {
 
-	if (_server.hasClient()) {
-		for (int i = 0; i < MAX_SRV_CLIENTS; i++) {
-			if (!_serverClients[i]) { //equivalent to !serverClients[i].connected()
-				_serverClients[i] = _server.available();
-				break;
-			}
+	bool result = false;
+	if (!_server.hasClient())
+		return result;
+	for (int i = 0; i < MAX_SRV_CLIENTS; i++) {
+		if (!_serverClients[i]) { //equivalent to !serverClients[i].connected()
+			_serverClients[i] = _server.available();
+			break;
 		}
 	}
 	//search all clients for data
@@ -200,15 +203,19 @@ void ModbusESP::taskTCP() {
 			while (_serverClients[i].available()) {
 				_MBAP[j] = _serverClients[i].read();
 				j++;
-				if (j == 7) break;  //MBAP length has 7 bytes size
+				if (j == 7) 
+					break;  //MBAP length has 7 bytes size
 			}
 
 			_len = _MBAP[4] << 8 | _MBAP[5];
 			_len--;  // Do not count with last byte from MBAP
 
-			if (_MBAP[2] != 0 || _MBAP[3] != 0) return;   //Not a MODBUSIP packet
-			if (_len > MODBUSIP_MAXFRAME) return;      //Length is over MODBUSIP_MAXFRAME
+			if (_MBAP[2] != 0 || _MBAP[3] != 0) 
+				return result;   //Not a MODBUSIP packet
+			if (_len > MODBUSIP_MAXFRAME)
+				return result;      //Length is over MODBUSIP_MAXFRAME
 
+			result = true;
 			_frame = (byte*)malloc(_len);
 			j = 0;
 			while (_serverClients[i].available()) {
@@ -238,11 +245,12 @@ void ModbusESP::taskTCP() {
 			_len = 0;
 		}
 	}
+	return result;
 }
-void ModbusESP::taskRTU() {
+bool ModbusESP::taskRTU() {
 	if ((*_port).available() > 255){
 		(*_port).flush();
-		return;
+		return false;
 	}
 	_len = 0;
 	while ((*_port).available() > _len) {
@@ -251,7 +259,7 @@ void ModbusESP::taskRTU() {
 	}
 
 	if (_len == 0)
-		return;
+		return false;
 
 	byte i;
 	_frame = (byte*)malloc(_len);
@@ -267,6 +275,7 @@ void ModbusESP::taskRTU() {
 	}
 	free(_frame);
 	_len = 0;
+	return true;
 }
 
 word ModbusESP::calcCrc(byte address, byte* pduFrame, byte pduLen) {

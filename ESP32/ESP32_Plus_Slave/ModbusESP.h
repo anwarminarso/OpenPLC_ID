@@ -44,8 +44,8 @@ class ModbusESP : public Modbus {
         ModbusESP();
         bool setSlaveId(byte slaveId);
         byte getSlaveId();
-        void taskRTU();
-        void taskTCP();
+        bool taskRTU();
+        bool taskTCP();
         bool receive(byte* frame);
         bool sendPDU(byte* pduframe);
         bool send(byte* frame);

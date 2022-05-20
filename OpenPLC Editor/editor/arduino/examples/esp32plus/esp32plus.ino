@@ -28,6 +28,7 @@ unsigned long __tick = 0;
 unsigned long scan_cycle;
 unsigned long timer_ms = 0;
 bool enableModbus[3] = { false, false, false };
+
 void syncModbusBuffers()
 {
     //Sync OpenPLC Buffers with Modbus Buffers	
@@ -65,11 +66,11 @@ void syncModbusBuffers()
     }
 
     //Read changes from clients
+
     if (enableModbus[1])
         modbus.taskTCP();
     if (enableModbus[2])
         modbus.taskRTU();
-
     //Write changes back to OpenPLC Buffers
     for (int i = 0; i < MAX_DIGITAL_OUTPUT; i++)
     {
@@ -89,7 +90,7 @@ void syncModbusBuffers()
                 *int_output[i] = AOUT_Values[i];
         }
         else if (int_output[i] != NULL)
-            modbus.Hreg(i, *int_output[i]);
+            *int_output[i] = (uint16_t)modbus.Hreg(i);
     }
 }
 
@@ -168,7 +169,7 @@ void loop()
     clientAPILoop();
 
     if (timer_ms > millis()) {
-        if (enableModbus[0] && timer_ms - millis() >= 1) 
+        if (enableModbus[0] && (timer_ms - millis() >= 1)) 
         {
             syncModbusBuffers();
         }
