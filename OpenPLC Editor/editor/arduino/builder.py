@@ -10,7 +10,7 @@ import json
 global compiler_logs
 compiler_logs = ''
 
-def build(st_file, platform, port, txtCtrl, update_subsystem):
+def build(st_file, platform, port, compileOnly, txtCtrl, update_subsystem):
     global compiler_logs
     compiler_logs = ''
     if (os.path.exists("editor/arduino/bin/iec2c") or os.path.exists("editor/arduino/bin/iec2c.exe")):
@@ -463,7 +463,21 @@ void updateTime()
     wx.CallAfter(txtCtrl.SetValue, compiler_logs)
     wx.CallAfter(txtCtrl.SetInsertionPoint, -1)
 
-    if (port != None and compilation.returncode == 0):
+    if (compileOnly and compilation.returncode == 0):
+        cwd = os.getcwd()
+        compiler_logs += '\nOUTPUT DIRECTORY:\n'
+        if (platform == 'esp32:esp32:esp32-plus' and os.name == 'nt'):
+            compiler_logs += cwd + '\\editor\\arduino\\examples\\esp32plus\\build\\esp32.esp32.esp32\n'
+        elif (platform == 'esp32:esp32:esp32-plus'):
+            compiler_logs += cwd + '/editor/arduino/examples/esp32plus/build/esp32.esp32.esp32\n'
+        elif (os.name == 'nt'):
+            compiler_logs += cwd + '\\editor\\arduino\\examples\\Baremetal\\build\n'
+        else:
+            compiler_logs += cwd + '/editor/arduino/examples/Baremetal/build\n'
+        compiler_logs += '\nCOMPILATION DONE!'
+        wx.CallAfter(txtCtrl.SetValue, compiler_logs)
+        wx.CallAfter(txtCtrl.SetInsertionPoint, -1)
+    elif (port != None and compilation.returncode == 0):
         compiler_logs += '\nUploading program to Arduino board at ' + port + '...\n'
         wx.CallAfter(txtCtrl.SetValue, compiler_logs)
         wx.CallAfter(txtCtrl.SetInsertionPoint, -1)
