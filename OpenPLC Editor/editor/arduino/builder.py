@@ -380,13 +380,13 @@ void updateTime()
     elif platform == 'esp32:esp32:esp32-plus':
         source_file = 'esp32_plus.cpp'
         output_platform = 'esp32:esp32:esp32'
-    elif platform == 'esp32:esp32:esp32-nasional':
-        source_file = 'esp32_nasional.cpp'
+    elif platform == 'esp32:esp32:esp32-nusantara':
+        source_file = 'esp32_nusantara.cpp'
         output_platform = 'esp32:esp32:esp32'
     elif platform == 'STM32:stm32:GenF1:pnum=BLUEPILL_F103C8':
-        source_file = 'stm32f103_nasional.cpp'
+        source_file = 'stm32f103_nusantara.cpp'
     elif platform == 'STM32:stm32:GenF4:pnum=BLACKPILL_F411CE':
-        source_file = 'stm32f411_nasional.cpp'
+        source_file = 'stm32f411_nusantara.cpp'
 
     shutil.copyfile(source_path + source_file, destination)
 
