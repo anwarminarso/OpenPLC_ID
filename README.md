@@ -38,9 +38,9 @@ Direction dari sisi ESP32
 | ------------------------- | ----------- | -------------------- | ------------------------------ |-------------------------------------------------------- |
 | Telemetry                 | Publish     | {ROOT_TOPIC}/tele    | `{"DiscreteInputs":[0,0,0,0,0,0,0],"InputRegisters":[4544,4096,8512,9216],"Coils":[0,0,0,0,0,0,0],"HoldingRegisters":[0,0]}` |
 | Result                    | Publish     | {ROOT_TOPIC}/result  |                                | ESP32 akan publish topic ini, jika ada perintah command |
-| Write Coil                | Subcribe    | {ROOT_TOPIC}/command | `{ cmd: 5, reg: 0, val: 0 }`     | cmd 5 adalah fix, reg = coil register, val adalah value (0 s/d 1) |
-| Write Single Register     | Subcribe    | {ROOT_TOPIC}/command | `{ cmd: 6, reg: 0, val: 12345 }` | cmd 6 adalah fix, reg = holding register, val adalah value (0 s/d 65535) |
-| Write Multiple Registers  | Subcribe    | {ROOT_TOPIC}/command | `{ cmd: 16, regs: [ 0, 1, 2 ], vals: [ 1111, 2222, 3333 ] }` | cmd 16 adalah fix, regs adalah array  register dan value adalah array value, panjang array register dan value harus sama |
+| Write Coil                | Subscribe   | {ROOT_TOPIC}/command | `{ cmd: 5, reg: 0, val: 0 }`     | cmd 5 adalah fix, reg = coil register, val adalah value (0 s/d 1) |
+| Write Single Register     | Subscribe   | {ROOT_TOPIC}/command | `{ cmd: 6, reg: 0, val: 12345 }` | cmd 6 adalah fix, reg = holding register, val adalah value (0 s/d 65535) |
+| Write Multiple Registers  | Subscribe   | {ROOT_TOPIC}/command | `{ cmd: 16, regs: [ 0, 1, 2 ], vals: [ 1111, 2222, 3333 ] }` | cmd 16 adalah fix, regs adalah array  register dan value adalah array value, panjang array register dan value harus sama |
 
 
 ### Fungsi esptool untuk maintenance:
