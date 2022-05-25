@@ -42,7 +42,12 @@ ulong currentMillis;
 StaticJsonDocument<1024> pubDoc;
 StaticJsonDocument<512> subDoc;
 
-void publishResult(char* msg) {
+#define MQTT_RESULT_MSG_DATA_ERROR			"Data format error.."
+#define MQTT_RESULT_MSG_PARSING_ERROR		"Error parsing data.."
+#define MQTT_RESULT_MSG_CMD_NOT_SUPPORTED	"Command not supported"
+#define MQTT_RESULT_MSG_OK					"OK"
+
+void publishResult(const char* msg) {
 	client.publish(resultTopic.c_str(), msg);
 }
 void clientAPI_CB(char* topic, byte* message, unsigned int length) {
@@ -53,7 +58,7 @@ void clientAPI_CB(char* topic, byte* message, unsigned int length) {
 	if (String(topic).equals(subscribeTopic)) {
 		DeserializationError error = deserializeJson(subDoc, msgValue);
 		if (error) {
-			publishResult("Data format error..");
+			publishResult(MQTT_RESULT_MSG_DATA_ERROR);
 			return;
 		}
 		try
@@ -68,7 +73,7 @@ void clientAPI_CB(char* topic, byte* message, unsigned int length) {
 						uint8_t reg = 0;
 						uint8_t val = 0;
 						if (!subDoc["reg"].is<uint8_t>() || !subDoc["val"].is<uint8_t>()) {
-							publishResult("Error parsing data..");
+							publishResult(MQTT_RESULT_MSG_PARSING_ERROR);
 							return;
 						}
 						reg = subDoc["reg"].as<uint8_t>();
@@ -76,13 +81,13 @@ void clientAPI_CB(char* topic, byte* message, unsigned int length) {
 						if (val > 1)
 							val = 1;
 						if (reg >= NUM_DISCRETE_OUTPUT) {
-							publishResult("Error parsing data..");
+							publishResult(MQTT_RESULT_MSG_PARSING_ERROR);
 							return;
 						}
 						DOUT_Values[reg] = val;
 						if (bool_output[reg / 8][reg % 8] != NULL)
 							*bool_output[reg / 8][reg % 8] = DOUT_Values[reg];
-						publishResult("OK");
+						publishResult(MQTT_RESULT_MSG_OK);
 					}
 					break;
 				case 6: //Write Single Register
@@ -90,19 +95,19 @@ void clientAPI_CB(char* topic, byte* message, unsigned int length) {
 						uint8_t reg = 0;
 						uint16_t val = 0;
 						if (!subDoc["reg"].is<uint8_t>() || !subDoc["val"].is<uint16_t>()) {
-							publishResult("Error parsing data..");
+							publishResult(MQTT_RESULT_MSG_PARSING_ERROR);
 							return;
 						}
 						reg = subDoc["reg"].as<uint8_t>();
 						val = subDoc["val"].as<uint16_t>();
 						if (reg >= NUM_ANALOG_OUTPUT) {
-							publishResult("Error parsing data..");
+							publishResult(MQTT_RESULT_MSG_PARSING_ERROR);
 							return;
 						}
 						AOUT_Values[reg] = val;
 						if (int_output[reg] != NULL)
 							*int_output[reg] = AOUT_Values[reg];
-						publishResult("OK");
+						publishResult(MQTT_RESULT_MSG_OK);
 					}
 					break;
 				case 16: //Write Multiple Register
@@ -110,20 +115,20 @@ void clientAPI_CB(char* topic, byte* message, unsigned int length) {
 						JsonArray regs;
 						JsonArray vals;
 						if (!subDoc["regs"].is<JsonArray>() || !subDoc["vals"].is<JsonArray>()) {
-							publishResult("Error parsing data..");
+							publishResult(MQTT_RESULT_MSG_PARSING_ERROR);
 							return;
 						}
 						regs = subDoc["regs"].as<JsonArray>();
 						vals = subDoc["vals"].as<JsonArray>();
 						if (regs.size() != vals.size()) {
-							publishResult("Error parsing data..");
+							publishResult(MQTT_RESULT_MSG_PARSING_ERROR);
 							return;
 						}
 						size_t len = regs.size();
 						for (uint8_t i = 0; i < len; i++)
 						{
 							if (!regs[i].is<uint8_t>() || !vals[i].is<uint16_t>() || regs[i] >= NUM_ANALOG_OUTPUT) {
-								publishResult("Error parsing data..");
+								publishResult(MQTT_RESULT_MSG_PARSING_ERROR);
 								return;
 							}
 						}
@@ -135,17 +140,17 @@ void clientAPI_CB(char* topic, byte* message, unsigned int length) {
 							if (int_output[reg] != NULL)
 								*int_output[reg] = AOUT_Values[reg];
 						}
-						publishResult("OK");
+						publishResult(MQTT_RESULT_MSG_OK);
 					}
 					break;
 				default:
-					publishResult("Command not supported");
+					publishResult(MQTT_RESULT_MSG_CMD_NOT_SUPPORTED);
 					break;
 			}
 		}
 		catch (const std::exception&)
 		{
-			publishResult("Error parsing data..");
+			publishResult(MQTT_RESULT_MSG_PARSING_ERROR);
 		}
 	}
 }

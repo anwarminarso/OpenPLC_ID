@@ -42,7 +42,12 @@ ulong currentMillis;
 StaticJsonDocument<1024> pubDoc;
 StaticJsonDocument<512> subDoc;
 
-void publishResult(char *msg) {
+#define MQTT_RESULT_MSG_DATA_ERROR			"Data format error.."
+#define MQTT_RESULT_MSG_PARSING_ERROR		"Error parsing data.."
+#define MQTT_RESULT_MSG_CMD_NOT_SUPPORTED	"Command not supported"
+#define MQTT_RESULT_MSG_OK					"OK"
+
+void publishResult(const char* msg) {
 	client.publish(resultTopic.c_str(), msg);
 }
 void clientAPI_CB(char* topic, byte* message, unsigned int length) {
@@ -54,7 +59,7 @@ void clientAPI_CB(char* topic, byte* message, unsigned int length) {
 	if (String(topic).equals(subscribeTopic)) {
 		DeserializationError error = deserializeJson(subDoc, msgValue);
 		if (error) {
-			publishResult("Data format error..");
+			publishResult(MQTT_RESULT_MSG_DATA_ERROR);
 			return;
 		}
 		try
@@ -64,88 +69,88 @@ void clientAPI_CB(char* topic, byte* message, unsigned int length) {
 				cmd = subDoc["cmd"].as<uint8_t>();
 			switch (cmd)
 			{
-				case 5: //write single coil
-					{
-						uint8_t reg = 0;
-						uint8_t val = 0;
-						if (!subDoc["reg"].is<uint8_t>() || !subDoc["val"].is<uint8_t>()) {
-							publishResult("Error parsing data..");
-							return;
-						}
-						reg = subDoc["reg"].as<uint8_t>();
-						val = subDoc["val"].as<uint8_t>();
-						if (val > 1)
-							val = 1;
-						if (reg >= NUM_DISCRETE_OUTPUT) {
-							publishResult("Error parsing data..");
-							return;
-						}
-						*bool_output[reg / 8][reg % 8] = val;
-						DOUT_Values[reg] = val;
-						publishResult("OK");
+			case 5: //write single coil
+			{
+				uint8_t reg = 0;
+				uint8_t val = 0;
+				if (!subDoc["reg"].is<uint8_t>() || !subDoc["val"].is<uint8_t>()) {
+					publishResult(MQTT_RESULT_MSG_PARSING_ERROR);
+					return;
+				}
+				reg = subDoc["reg"].as<uint8_t>();
+				val = subDoc["val"].as<uint8_t>();
+				if (val > 1)
+					val = 1;
+				if (reg >= NUM_DISCRETE_OUTPUT) {
+					publishResult(MQTT_RESULT_MSG_PARSING_ERROR);
+					return;
+				}
+				*bool_output[reg / 8][reg % 8] = val;
+				DOUT_Values[reg] = val;
+				publishResult(MQTT_RESULT_MSG_OK);
+			}
+			break;
+			case 6: //Write Single Register
+			{
+				uint8_t reg = 0;
+				uint16_t val = 0;
+				if (!subDoc["reg"].is<uint8_t>() || !subDoc["reg"].is<uint16_t>()) {
+					publishResult(MQTT_RESULT_MSG_PARSING_ERROR);
+					return;
+				}
+				reg = subDoc["reg"].as<uint8_t>();
+				val = subDoc["val"].as<uint16_t>();
+				if (val > 1)
+					val = 1;
+				if (reg >= NUM_ANALOG_OUTPUT) {
+					publishResult(MQTT_RESULT_MSG_PARSING_ERROR);
+					return;
+				}
+				*int_output[reg] = val;
+				AOUT_Values[reg] = val;
+				publishResult(MQTT_RESULT_MSG_OK);
+			}
+			break;
+			case 16: //Write Multiple Register
+			{
+				JsonArray regs;
+				JsonArray vals;
+				if (!subDoc["regs"].is<JsonArray>() || !subDoc["vals"].is<JsonArray>()) {
+					publishResult(MQTT_RESULT_MSG_PARSING_ERROR);
+					return;
+				}
+				regs = subDoc["regs"].as<JsonArray>();
+				vals = subDoc["vals"].as<JsonArray>();
+				if (regs.size() != vals.size()) {
+					publishResult(MQTT_RESULT_MSG_PARSING_ERROR);
+					return;
+				}
+				size_t len = regs.size();
+				for (uint8_t i = 0; i < len; i++)
+				{
+					if (!regs[i].is<uint8_t>() || !vals[i].is<uint16_t>() || regs[i] >= NUM_ANALOG_OUTPUT) {
+						publishResult(MQTT_RESULT_MSG_PARSING_ERROR);
+						return;
 					}
-					break;
-				case 6: //Write Single Register
-					{
-						uint8_t reg = 0;
-						uint16_t val = 0;
-						if (!subDoc["reg"].is<uint8_t>() || !subDoc["reg"].is<uint16_t>()) {
-							publishResult("Error parsing data..");
-							return;
-						}
-						reg = subDoc["reg"].as<uint8_t>();
-						val = subDoc["val"].as<uint16_t>();
-						if (val > 1)
-							val = 1;
-						if (reg >= NUM_ANALOG_OUTPUT) {
-							publishResult("Error parsing data..");
-							return;
-						}
-						*int_output[reg] = val;
-						AOUT_Values[reg] = val;
-						publishResult("OK");
-					}
-					break;
-				case 16: //Write Multiple Register
-					{
-						JsonArray regs;
-						JsonArray vals;
-						if (!subDoc["regs"].is<JsonArray>() || !subDoc["vals"].is<JsonArray>()) {
-							publishResult("Error parsing data..");
-							return;
-						}
-						regs = subDoc["regs"].as<JsonArray>();
-						vals = subDoc["vals"].as<JsonArray>();
-						if (regs.size() != vals.size()) {
-							publishResult("Error parsing data..");
-							return;
-						}
-						size_t len = regs.size();
-						for (uint8_t i = 0; i < len; i++)
-						{
-							if (!regs[i].is<uint8_t>() || !vals[i].is<uint16_t>() || regs[i] >= NUM_ANALOG_OUTPUT) {
-								publishResult("Error parsing data..");
-								return;
-							}
-						}
-						for (uint8_t i = 0; i < len; i++)
-						{
-							uint8_t reg = regs[i].as<uint8_t>();
-							uint16_t val = vals[i].as<uint16_t>();
-							*int_output[reg] = val;
-							AOUT_Values[reg] = val;
-						}
-						publishResult("OK");
-					}
-					break;
-				default:
-					publishResult("Command not supported");
-					break;
+				}
+				for (uint8_t i = 0; i < len; i++)
+				{
+					uint8_t reg = regs[i].as<uint8_t>();
+					uint16_t val = vals[i].as<uint16_t>();
+					*int_output[reg] = val;
+					AOUT_Values[reg] = val;
+				}
+				publishResult(MQTT_RESULT_MSG_OK);
+			}
+			break;
+			default:
+				publishResult(MQTT_RESULT_MSG_CMD_NOT_SUPPORTED);
+				break;
 			}
 		}
 		catch (const std::exception&)
 		{
-			publishResult("Error parsing data..");
+			publishResult(MQTT_RESULT_MSG_PARSING_ERROR);
 		}
 	}
 }
